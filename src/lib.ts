@@ -8,7 +8,7 @@ import { basename, join, resolve, sep } from "node:path";
 export const FLBUS_HOME = join(homedir(), ".flbus");
 export const ROUTES_PATH = join(FLBUS_HOME, "routes.json");
 
-export type Envelope = { from: string; to: string; summary: string; cc?: string; channel?: string };
+export type Envelope = { from: string; to: string; summary: string; cc?: string };
 export type RouteEntry = { dir: string; state?: string };
 
 export function readJson<T>(path: string, fallback: T): T {
@@ -32,7 +32,11 @@ export function routes(): Record<string, RouteEntry> {
 
 // Case-insensitive on Windows/macOS, case-sensitive on Linux — match each platform's filesystem.
 export const caseFold = (p: string) => (process.platform === "linux" ? p : p.toLowerCase());
-export const samePath = (a: string, b: string) => caseFold(resolve(a)) === caseFold(resolve(b));
+// The single path-identity rule shared by samePath / projectRoot / projectKey: absolute + case-folded.
+// Deliberately NOT realpath (it throws on missing paths and has junction/short-path quirks) — if symlink
+// aliasing ever needs collapsing, change it here so all three stay consistent, never one in isolation.
+export const canonical = (p: string) => caseFold(resolve(p));
+export const samePath = (a: string, b: string) => canonical(a) === canonical(b);
 
 export function routeFor(projectDir: string): { name: string; entry: RouteEntry } | undefined {
   for (const [name, entry] of Object.entries(routes())) if (samePath(entry.dir, projectDir)) return { name, entry };
@@ -44,21 +48,21 @@ export function routeFor(projectDir: string): { name: string; entry: RouteEntry 
 // UNREGISTERED project's subdir sessions resolve to themselves — register it to share one bus.)
 export function projectRoot(startDir: string): string {
   const start = resolve(startDir);
-  const startLc = caseFold(start);
+  const startC = canonical(start);
   let best: string | undefined;
   for (const { dir } of Object.values(routes())) {
-    const d = resolve(dir), dLc = caseFold(d);
-    const prefix = dLc.endsWith(sep) ? dLc : dLc + sep; // a route at a drive root keeps its trailing sep
-    if ((startLc === dLc || startLc.startsWith(prefix)) && (!best || d.length > best.length)) best = d;
+    const d = resolve(dir), dC = canonical(d);
+    const prefix = dC.endsWith(sep) ? dC : dC + sep; // a route at a drive root keeps its trailing sep
+    if ((startC === dC || startC.startsWith(prefix)) && (!best || d.length > best.length)) best = d;
   }
   return best ?? start;
 }
 
 // Bus state for a project. Default: a central per-user dir keyed by the project's absolute path, so
 // messaging never writes into the project tree. A route may opt into in-tree storage via `state`.
-// Key is case-normalized like route matching, but NOT realpath — symlink/short-path aliases split it.
+// Key is canonical() of the path — same identity rule as route matching (symlink-alias caveat there).
 function projectKey(projectDir: string): string {
-  const norm = caseFold(resolve(projectDir));
+  const norm = canonical(projectDir);
   return `${basename(norm)}-${createHash("sha256").update(norm).digest("hex").slice(0, 12)}`;
 }
 export function stateDir(projectDir: string, state?: string): string {
@@ -125,7 +129,6 @@ export function parseEnvelope(raw: string): { env: Partial<Envelope>; body: stri
 export function serializeEnvelope(env: Envelope, body: string): string {
   const lines = [`from: ${env.from}`, `to: ${env.to}`, `summary: ${env.summary}`];
   if (env.cc) lines.push(`cc: ${env.cc}`);
-  if (env.channel) lines.push(`channel: ${env.channel}`);
   return `---\n${lines.join("\n")}\n---\n${body.trimEnd()}\n`;
 }
 
