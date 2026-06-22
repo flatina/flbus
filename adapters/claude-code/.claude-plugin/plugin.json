@@ -1,0 +1,5 @@
+{
+  "name": "flbus",
+  "description": "Agent-to-agent message bus for Claude Code sessions — human-gated, file-based, no daemon",
+  "version": "0.1.0"
+}

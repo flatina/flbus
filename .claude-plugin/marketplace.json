@@ -1,0 +1,7 @@
+{
+  "name": "flatina",
+  "owner": { "name": "flatina" },
+  "plugins": [
+    { "name": "flbus", "source": "./adapters/claude-code", "description": "Agent-to-agent message bus for Claude Code sessions — human-gated, file-based, no daemon" }
+  ]
+}
