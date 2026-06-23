@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync, writeSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
@@ -100,6 +100,12 @@ export function atomicWrite(path: string, content: string) {
   const tmp = `${path}.${process.pid}-${Math.random().toString(36).slice(2, 8)}.part`;
   writeFileSync(tmp, content, "utf8");
   retryRename(tmp, path);
+}
+
+// stdout via writeSync so a broken pipe is a catchable EPIPE (returns false), not an async crash.
+export function out(s: string): boolean {
+  try { writeSync(1, s); return true; }
+  catch (e) { if ((e as NodeJS.ErrnoException)?.code === "EPIPE") return false; throw e; }
 }
 
 // Synchronous sleep that works on both node and bun (node has no Bun.sleepSync).

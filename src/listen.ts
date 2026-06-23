@@ -9,7 +9,7 @@
 import { watch } from "node:fs";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { listenFlag, consumeMessage, inboxDir, projectRoot, resolveName } from "./lib";
+import { listenFlag, consumeMessage, inboxDir, out, projectRoot, resolveName } from "./lib";
 
 export function run(args: string[]) {
   const sid = process.env.CLAUDE_CODE_SESSION_ID;
@@ -42,20 +42,24 @@ export function run(args: string[]) {
 
   const dir = inboxDir(cwd, name);
   mkdirSync(dir, { recursive: true });
-  console.log(`listening as '${name}': ${dir}`);
+  if (!out(`listening as '${name}': ${dir}\n`)) process.exit(1);
 
   const messages = () => readdirSync(dir).filter(f => f.endsWith(".md"));
 
   function finish(files: string[]) {
     for (const f of files) {
+      // probe stdout before the irreversible consume — a dead pipe leaves the message for redelivery
+      if (!out(`===== ${f} =====\n`)) {
+        console.error("[flbus] listen stdout closed (piped to a reader that exited?) — not consuming; run a bare `flbus listen`");
+        process.exit(1);
+      }
       let raw: string | null;
       try { raw = consumeMessage(cwd, name, f); }
       catch (e) { console.error(`[flbus] consume error for ${f} (message preserved): ${e}`); continue; }
       if (raw === null) continue; // another consumer won the claim — no loss
-      console.log(`===== ${f} =====`);
-      console.log(raw);
+      if (!out(`${raw}\n`)) process.exit(1); // pipe closed mid-message; already archived
     }
-    console.log("[flbus] delivered — report what arrived to the user, then re-arm to keep listening");
+    out("[flbus] delivered — report what arrived to the user, then re-arm to keep listening\n");
     process.exit(0);
   }
 

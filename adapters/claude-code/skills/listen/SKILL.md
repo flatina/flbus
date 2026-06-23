@@ -13,6 +13,8 @@ On — run as a **background task**, then end the turn; its exit output delivers
 flbus listen
 ```
 
+Run it **bare**: never pipe it (`| head`/`grep`/`tee`) and never foreground it — its stdout is the delivery channel, so a consumer that closes the pipe early kills the watcher and can strand a message. No need to peek at the banner; the background task captures it.
+
 After each delivery: report what arrived, re-arm the same command, end the turn. The mode stays on until turned off.
 
 Off: stop the background task, then the same command with `--off`.
