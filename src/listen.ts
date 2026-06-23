@@ -1,5 +1,9 @@
-// `flbus listen`        on: write the mode flag, watch own inbox, consume on arrival
-// `flbus listen --off`  off: remove this session's mode flag
+// `flbus listen`            on: write the mode flag, watch own inbox, consume on arrival
+// `flbus listen --arm-only` write the mode flag only — no watch, no consume — then exit. Arms the
+//                           Stop-hook guard: a message then left in the inbox blocks the next stop and
+//                           re-prompts, so self-delivery doesn't depend on the background-completion
+//                           wakeup. The woken turn consumes it (`flbus get` / a fresh `listen`).
+// `flbus listen --off`      off: remove this session's mode flag
 // The flag persists across deliveries (mode ≠ process) — re-arm after each one.
 // Exits 0 on delivery; lives and dies with the session.
 import { watch } from "node:fs";
@@ -10,8 +14,8 @@ import { listenFlag, consumeMessage, inboxDir, projectRoot, resolveName } from "
 export function run(args: string[]) {
   const sid = process.env.CLAUDE_CODE_SESSION_ID;
   if (!sid) { console.error("no CLAUDE_CODE_SESSION_ID — run inside a Claude Code session"); process.exit(1); }
-  const unknown = args.find(a => a !== "--off");
-  if (unknown) { console.error(`unknown argument: ${unknown} (usage: flbus listen [--off])`); process.exit(1); }
+  const unknown = args.find(a => a !== "--off" && a !== "--arm-only");
+  if (unknown) { console.error(`unknown argument: ${unknown} (usage: flbus listen [--off | --arm-only])`); process.exit(1); }
 
   const cwd = projectRoot(process.cwd());
   const name = resolveName(cwd);
@@ -28,9 +32,15 @@ export function run(args: string[]) {
     process.exit(0);
   }
 
-  const dir = inboxDir(cwd, name);
   mkdirSync(dirname(flagPath), { recursive: true });
   writeFileSync(flagPath, sid, "utf8");
+
+  if (args.includes("--arm-only")) {
+    console.log(`armed as '${name}' (flag only, not watching) — a waiting message blocks the next stop`);
+    process.exit(0);
+  }
+
+  const dir = inboxDir(cwd, name);
   mkdirSync(dir, { recursive: true });
   console.log(`listening as '${name}': ${dir}`);
 

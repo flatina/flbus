@@ -37,7 +37,7 @@ usage: flbus <command> [args]
   list [--name <name>]                list inbox summaries
   get <file|all> [--name <name>]      read message(s), archived after
   discard <file|all> [--name <name>]  drop unread without reading (archived)
-  listen [--off]                      watch inbox, consume on arrival (run as a background task)
+  listen [--off|--arm-only]           watch inbox & consume (background task); --arm-only only sets the guard flag
   endpoint create|rm|ls [<name>]      manage same-folder mailboxes
   claim <name> | claim --off          bind this session to a name (alias of: endpoint bind)
   route list | add [name] [dir] [--state <rel>] | remove <name>
