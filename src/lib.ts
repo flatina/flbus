@@ -3,29 +3,32 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, join, resolve, sep } from "node:path";
 
-// Per-user flbus home: the routes table plus, by default, all bus state — central so messaging
-// never touches the project tree. (Don't sync this dir: routes and state hold machine-specific paths.)
+// Per-user flbus home: the peer table plus, by default, all bus state — central so messaging
+// never touches the project tree. (Don't sync this dir: peers and state hold machine-specific paths.)
 export const FLBUS_HOME = join(homedir(), ".flbus");
-export const ROUTES_PATH = join(FLBUS_HOME, "routes.json");
+export const PEERS_PATH = join(FLBUS_HOME, "peers.json");
 
 export type Envelope = { from: string; to: string; summary: string; cc?: string };
-export type RouteEntry = { dir: string; state?: string };
+export type PeerEntry = { dir: string; state?: string };
+
+// Reserved address tokens: `here` = this folder; the rest are grammar words. Never a peer/mailbox name.
+export const RESERVED = new Set(["here", "peer", "host", "self", "local"]);
 
 export function readJson<T>(path: string, fallback: T): T {
   try { return JSON.parse(readFileSync(path, "utf8")) as T; } catch { return fallback; }
 }
 
-// Endpoint/route names become path segments — first char alnum (no `.`/`..`/dotfiles), no separators,
+// Mailbox/peer names become path segments — first char alnum (no `.`/`..`/dotfiles), no separators,
 // not a reserved bus filename. Callers reject invalid names before touching the filesystem.
 export function validName(name: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) && name !== "archive" && name !== "sessions.json";
 }
 
-// The machine-local routing table is the single source for a project's bus identity:
+// The machine-local peer table is the single source for a project's bus identity:
 // name → { dir, state? }. A plain string is a bare dir; `state` opts a project into in-tree storage.
-export function routes(): Record<string, RouteEntry> {
-  const raw = readJson<Record<string, string | RouteEntry>>(ROUTES_PATH, {});
-  const out: Record<string, RouteEntry> = {};
+export function peers(): Record<string, PeerEntry> {
+  const raw = readJson<Record<string, string | PeerEntry>>(PEERS_PATH, {});
+  const out: Record<string, PeerEntry> = {};
   for (const [name, v] of Object.entries(raw)) out[name] = typeof v === "string" ? { dir: v } : v;
   return out;
 }
@@ -38,29 +41,45 @@ export const caseFold = (p: string) => (process.platform === "linux" ? p : p.toL
 export const canonical = (p: string) => caseFold(resolve(p));
 export const samePath = (a: string, b: string) => canonical(a) === canonical(b);
 
-export function routeFor(projectDir: string): { name: string; entry: RouteEntry } | undefined {
-  for (const [name, entry] of Object.entries(routes())) if (samePath(entry.dir, projectDir)) return { name, entry };
+export function peerFor(projectDir: string): { name: string; entry: PeerEntry } | undefined {
+  for (const [name, entry] of Object.entries(peers())) if (samePath(entry.dir, projectDir)) return { name, entry };
   return undefined;
 }
 
-// The session's working dir may be a subdirectory; anchor to the deepest registered route dir at or
+// Address grammar for `--to`/`--cc`:  [project][:mailbox][@host]
+//   peerName          peer's default mailbox (= peerName)
+//   peerName:mailbox  a named mailbox on a peer
+//   here:mailbox      a same-folder mailbox (this project)
+//   …@host            remote (host requires a project; resolution lands with the remote feature)
+// Parse only — split into parts; the caller validates and resolves. Empty parts become undefined.
+export function parseAddress(addr: string): { project?: string; mailbox?: string; host?: string } {
+  let rest = addr, host: string | undefined;
+  const at = addr.indexOf("@");
+  if (at >= 0) { host = addr.slice(at + 1) || undefined; rest = addr.slice(0, at); }
+  const colon = rest.indexOf(":");
+  const project = (colon >= 0 ? rest.slice(0, colon) : rest) || undefined;
+  const mailbox = (colon >= 0 ? rest.slice(colon + 1) : "") || undefined;
+  return { project, mailbox, host };
+}
+
+// The session's working dir may be a subdirectory; anchor to the deepest registered peer dir at or
 // above startDir, else startDir itself. (No in-tree breadcrumb under central storage, so an
 // UNREGISTERED project's subdir sessions resolve to themselves — register it to share one bus.)
 export function projectRoot(startDir: string): string {
   const start = resolve(startDir);
   const startC = canonical(start);
   let best: string | undefined;
-  for (const { dir } of Object.values(routes())) {
+  for (const { dir } of Object.values(peers())) {
     const d = resolve(dir), dC = canonical(d);
-    const prefix = dC.endsWith(sep) ? dC : dC + sep; // a route at a drive root keeps its trailing sep
+    const prefix = dC.endsWith(sep) ? dC : dC + sep; // a peer at a drive root keeps its trailing sep
     if ((startC === dC || startC.startsWith(prefix)) && (!best || d.length > best.length)) best = d;
   }
   return best ?? start;
 }
 
 // Bus state for a project. Default: a central per-user dir keyed by the project's absolute path, so
-// messaging never writes into the project tree. A route may opt into in-tree storage via `state`.
-// Key is canonical() of the path — same identity rule as route matching (symlink-alias caveat there).
+// messaging never writes into the project tree. A peer may opt into in-tree storage via `state`.
+// Key is canonical() of the path — same identity rule as peer matching (symlink-alias caveat there).
 function projectKey(projectDir: string): string {
   const norm = canonical(projectDir);
   return `${basename(norm)}-${createHash("sha256").update(norm).digest("hex").slice(0, 12)}`;
@@ -68,19 +87,19 @@ function projectKey(projectDir: string): string {
 export function stateDir(projectDir: string, state?: string): string {
   return state ? resolve(projectDir, state) : join(FLBUS_HOME, projectKey(projectDir));
 }
-export const busDir = (projectDir: string) => stateDir(projectDir, routeFor(projectDir)?.entry.state);
+export const busDir = (projectDir: string) => stateDir(projectDir, peerFor(projectDir)?.entry.state);
 export const inboxDir = (projectDir: string, name: string) => join(busDir(projectDir), name, "inbox");
 // listen mode flag; content = owning session id, so a dead session's flag is ignored
 export const listenFlag = (projectDir: string, name: string) => join(busDir(projectDir), name, ".listen");
 export const archiveDir = (projectDir: string) => join(busDir(projectDir), "archive");
 
-// Identity resolution: claim (session id from hooks' stdin or the tool shell's env) → routing table (by dir) → folder basename
+// Identity resolution: claim (session id from hooks' stdin or the tool shell's env) → peer table (by dir) → folder basename
 export function resolveName(projectDir: string, sessionId = process.env.CLAUDE_CODE_SESSION_ID): string {
   if (sessionId) {
     const sessions = readJson<Record<string, string>>(join(busDir(projectDir), "sessions.json"), {});
     if (sessions[sessionId]) return sessions[sessionId];
   }
-  return routeFor(projectDir)?.name ?? basename(projectDir);
+  return peerFor(projectDir)?.name ?? basename(projectDir);
 }
 
 // Claim-first consume: rename into the archive (the claim), read after.

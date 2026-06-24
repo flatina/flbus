@@ -2,7 +2,7 @@
 // Summary-only messages (empty body) are fully delivered by the notice line: archived here, no pull needed.
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { archiveDir, inboxDir, parseEnvelope, projectRoot, resolveName, retryRename } from "./lib";
+import { archiveDir, inboxDir, parseAddress, parseEnvelope, projectRoot, resolveName, retryRename } from "./lib";
 
 export function run() {
   try {
@@ -16,7 +16,8 @@ export function run() {
     for (const f of readdirSync(dir).filter(f => f.endsWith(".md"))) {
       try {
         const { env, body } = parseEnvelope(readFileSync(join(dir, f), "utf8"));
-        const ccTag = env.cc && env.to !== name ? " (cc)" : "";
+        const a = env.to ? parseAddress(env.to) : {};
+        const ccTag = env.cc && (a.mailbox ?? a.project) !== name ? " (cc)" : "";
         const line = `[flbus] ${name} inbox: from ${env.from ?? "?"} — "${env.summary ?? f}" · ${f}${ccTag}`;
         if (body.trim()) { console.log(line); pending++; continue; }
         const archive = archiveDir(cwd);
@@ -25,7 +26,7 @@ export function run() {
         console.log(`${line} (summary-only — delivered)`);
       } catch { /* file vanished mid-loop (watcher won) or unreadable — skip; next prompt re-surfaces */ }
     }
-    if (pending) console.log(`[flbus] receive: flbus get all (or get <file>)`);
+    if (pending) console.log(`[flbus] receive: flbus take all (or take <file>)`);
   } catch {
     // a failed notice must never break the user's prompt
   }

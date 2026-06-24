@@ -6,11 +6,11 @@ description: Receive flbus messages — when a [flbus] notice appeared or the us
 # flbus recv
 
 ```
-flbus list | get <file|all> | discard <file|all>
+flbus peek | take <file|all> | discard <file|all>
 ```
 
-A notice in context already carries the exact command — run it. Otherwise `list`, then `get` selectively. `discard` drops a message unread (archived, never printed) — use it to clear noise without reading.
+A notice in context already carries the exact command — run it. Otherwise `peek` (summaries, non-consuming), then `take` selectively — `take` reads a message and **removes it from the inbox** (archived). `discard` drops a message unread (archived, never printed) — clear noise without reading.
 
-Summary-only notices were already delivered; they never appear in `list`.
+Summary-only notices were already delivered; they never appear in `peek`.
 
 `(cc)` on a notice = you're a cc recipient, not the primary `to`.
