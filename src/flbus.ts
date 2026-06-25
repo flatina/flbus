@@ -9,6 +9,7 @@ import { run as guard } from "./listen-guard";
 import { run as peer } from "./peer";
 import { run as status } from "./status";
 import { run as notify } from "./notify";
+import { run as reap } from "./reap";
 import { run as mailbox } from "./mailbox";
 import pkg from "../package.json";
 
@@ -26,6 +27,7 @@ const DISPATCH: Record<string, () => void> = {
   peer: () => peer(rest),
   notify: () => notify(),
   guard: () => guard(),
+  reap: () => reap(),
 };
 
 const HELP = `flbus ${pkg.version} — human-gated, file-based agent message bus
@@ -48,7 +50,7 @@ usage: flbus <command> [args]
   -v, --version                       show version
 
 State is central in ~/.flbus by default; set a peer's \`state\` to store it in-tree instead.
-(notify and guard are internal Claude Code hook entrypoints.)`;
+(notify, guard, reap are internal Claude Code hook entrypoints.)`;
 
 if (!cmd || cmd === "-h" || cmd === "--help") { console.log(HELP); process.exit(0); }
 if (cmd === "-v" || cmd === "--version") { console.log(pkg.version); process.exit(0); }

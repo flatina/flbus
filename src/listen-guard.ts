@@ -1,7 +1,7 @@
 // Stop hook: guards the listen promise — blocks once when the session that owns
 // the listen flag tries to stop with unprocessed messages in its inbox.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { listenFlag, inboxDir, projectRoot, resolveName } from "./lib";
+import { listenFlag, inboxDir, projectRoot, readFlag, resolveName } from "./lib";
 
 export function run() {
   try {
@@ -10,7 +10,7 @@ export function run() {
     const cwd = projectRoot(input.cwd ?? process.cwd());
     const name = resolveName(cwd, input.session_id);
     const flagPath = listenFlag(cwd, name);
-    if (!input.session_id || !existsSync(flagPath) || readFileSync(flagPath, "utf8").trim() !== input.session_id) process.exit(0);
+    if (!input.session_id || !existsSync(flagPath) || readFlag(flagPath)?.sid !== input.session_id) process.exit(0);
     const dir = inboxDir(cwd, name);
     const n = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".md")).length : 0;
     if (n > 0) {

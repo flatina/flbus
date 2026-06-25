@@ -2,14 +2,14 @@
 // `flbus listen --arm-only` write the mode flag only — no watch, no consume — then exit. Arms the
 //                           Stop-hook guard: a message then left in the inbox blocks the next stop and
 //                           re-prompts, so self-delivery doesn't depend on the background-completion
-//                           wakeup. The woken turn consumes it (`flbus get` / a fresh `listen`).
+//                           wakeup. The woken turn consumes it (`flbus take` / a fresh `listen`).
 // `flbus listen --off`      off: remove this session's mode flag
 // The flag persists across deliveries (mode ≠ process) — re-arm after each one.
-// Exits 0 on delivery; lives and dies with the session.
+// Single owner per inbox: the newest arm (sid+pid in the flag) delivers; a superseded watcher stands down.
 import { watch } from "node:fs";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { listenFlag, consumeMessage, inboxDir, out, projectRoot, resolveName } from "./lib";
+import { listenFlag, consumeMessage, inboxDir, out, projectRoot, readFlag, resolveName } from "./lib";
 
 export function run(args: string[]) {
   const sid = process.env.CLAUDE_CODE_SESSION_ID;
@@ -23,7 +23,7 @@ export function run(args: string[]) {
 
   if (args.includes("--off")) {
     if (!existsSync(flagPath)) { console.log(`not listening as '${name}'`); process.exit(0); }
-    if (readFileSync(flagPath, "utf8").trim() !== sid) {
+    if (readFlag(flagPath)?.sid !== sid) {
       console.error(`listen for '${name}' is owned by another session — not touching it`);
       process.exit(1);
     }
@@ -33,7 +33,7 @@ export function run(args: string[]) {
   }
 
   mkdirSync(dirname(flagPath), { recursive: true });
-  writeFileSync(flagPath, sid, "utf8");
+  writeFileSync(flagPath, `${sid}\n${process.pid}\n`, "utf8"); // claim the inbox: newest sid+pid owns it
 
   if (args.includes("--arm-only")) {
     console.log(`armed as '${name}' (flag only, not watching) — a waiting message blocks the next stop`);
@@ -45,8 +45,11 @@ export function run(args: string[]) {
   if (!out(`listening as '${name}': ${dir}\n`)) process.exit(1);
 
   const messages = () => readdirSync(dir).filter(f => f.endsWith(".md"));
+  // single owner: deliver only while I hold the flag (sid+pid); a newer arm supersedes me → stand down
+  const owned = () => { const fl = readFlag(flagPath); return fl?.sid === sid && fl?.pid === process.pid; };
 
   function finish(files: string[]) {
+    if (!owned()) process.exit(0); // a newer session/process took over this inbox — don't race it
     for (const f of files) {
       // probe stdout before the irreversible consume — a dead pipe leaves the message for redelivery
       if (!out(`===== ${f} =====\n`)) {
@@ -56,7 +59,7 @@ export function run(args: string[]) {
       let raw: string | null;
       try { raw = consumeMessage(cwd, name, f); }
       catch (e) { console.error(`[flbus] consume error for ${f} (message preserved): ${e}`); continue; }
-      if (raw === null) continue; // another consumer won the claim — no loss
+      if (raw === null) { out(`(${f} was taken by another reader — already delivered)\n`); continue; } // not a silent drop
       if (!out(`${raw}\n`)) process.exit(1); // pipe closed mid-message; already archived
     }
     out("[flbus] delivered — report what arrived to the user, then re-arm to keep listening\n");
@@ -67,6 +70,7 @@ export function run(args: string[]) {
   const check = () => {
     if (settling) return;
     settling = setTimeout(() => {
+      if (!owned()) process.exit(0); // stand down even when idle, once a newer arm supersedes me
       const files = messages();
       if (files.length) finish(files);
       settling = null;
@@ -77,5 +81,5 @@ export function run(args: string[]) {
   const existing = messages();
   if (existing.length) finish(existing);
 
-  setInterval(check, 10_000); // poll fallback for missed fs.watch events
+  setInterval(check, 10_000); // poll fallback for missed fs.watch events (and the idle stand-down check)
 }

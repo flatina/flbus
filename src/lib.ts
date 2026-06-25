@@ -89,8 +89,15 @@ export function stateDir(projectDir: string, state?: string): string {
 }
 export const busDir = (projectDir: string) => stateDir(projectDir, peerFor(projectDir)?.entry.state);
 export const inboxDir = (projectDir: string, name: string) => join(busDir(projectDir), name, "inbox");
-// listen mode flag; content = owning session id, so a dead session's flag is ignored
+// listen mode flag; the single-owner token for an inbox. Content = owning session id + watcher pid
+// (one per line). A watcher delivers only while it owns it (sid+pid match); a superseded one stands down.
 export const listenFlag = (projectDir: string, name: string) => join(busDir(projectDir), name, ".listen");
+export function readFlag(flagPath: string): { sid: string; pid?: number } | undefined {
+  try {
+    const [sid, pid] = readFileSync(flagPath, "utf8").split(/\r?\n/);
+    return sid?.trim() ? { sid: sid.trim(), pid: pid?.trim() ? Number(pid.trim()) : undefined } : undefined;
+  } catch { return undefined; }
+}
 export const archiveDir = (projectDir: string) => join(busDir(projectDir), "archive");
 
 // Identity resolution: claim (session id from hooks' stdin or the tool shell's env) → peer table (by dir) → folder basename

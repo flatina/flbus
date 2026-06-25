@@ -3,9 +3,9 @@
 // `flbus mailbox ls`         — list this project's mailboxes + pending counts
 // To RECEIVE as a mailbox, use `flbus claim <name>` (creates it if needed + binds this session); `mailbox bind` is the
 // mechanical alias `claim` dispatches to. Mailbox lifecycle is command-only — callers never touch the bus storage layout.
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { archiveDir, atomicWrite, busDir, inboxDir, listenFlag, peers, projectRoot, readJson, RESERVED, resolveName, retryRename, validName } from "./lib";
+import { archiveDir, atomicWrite, busDir, inboxDir, listenFlag, peers, projectRoot, readFlag, readJson, RESERVED, resolveName, retryRename, validName } from "./lib";
 
 export function run(args: string[]) {
   const [sub, arg] = args;
@@ -60,7 +60,7 @@ export function run(args: string[]) {
     const dropOwnedFlag = (name: string | undefined) => {
       if (!name) return;
       const f = listenFlag(cwd, name);
-      if (existsSync(f) && readFileSync(f, "utf8").trim() === sid) { rmSync(f, { force: true }); console.log(`listen off for '${name}'`); }
+      if (existsSync(f) && readFlag(f)?.sid === sid) { rmSync(f, { force: true }); console.log(`listen off for '${name}'`); }
     };
     if (arg === "--off") {
       delete sessions[sid];
