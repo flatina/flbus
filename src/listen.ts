@@ -1,8 +1,7 @@
 // `flbus listen`            on: write the mode flag, watch own inbox, consume on arrival
-// `flbus listen --arm-only` write the mode flag only — no watch, no consume — then exit. Arms the
-//                           Stop-hook guard: a message then left in the inbox blocks the next stop and
-//                           re-prompts, so self-delivery doesn't depend on the background-completion
-//                           wakeup. The woken turn consumes it (`flbus take` / a fresh `listen`).
+// `flbus listen --arm-only` write the flag only — no watch — then exit, arming the Stop-hook guard
+//                           (a waiting message blocks the next stop). For self-delivery: a bare watcher
+//                           would consume the just-armed message and exit mid-turn, losing the wakeup.
 // `flbus listen --off`      off: remove this session's mode flag
 // The flag persists across deliveries (mode ≠ process) — re-arm after each one.
 // Single owner per inbox: the newest arm (sid+pid in the flag) delivers; a superseded watcher stands down.
@@ -33,9 +32,11 @@ export function run(args: string[]) {
   }
 
   mkdirSync(dirname(flagPath), { recursive: true });
-  writeFileSync(flagPath, `${sid}\n${process.pid}\n`, "utf8"); // claim the inbox: newest sid+pid owns it
+  const armOnly = args.includes("--arm-only");
+  // arm-only has no watcher to reap → sid only; a watching listen records pid for ownership
+  writeFileSync(flagPath, armOnly ? `${sid}\n` : `${sid}\n${process.pid}\n`, "utf8");
 
-  if (args.includes("--arm-only")) {
+  if (armOnly) {
     console.log(`armed as '${name}' (flag only, not watching) — a waiting message blocks the next stop`);
     process.exit(0);
   }
@@ -59,7 +60,7 @@ export function run(args: string[]) {
       let raw: string | null;
       try { raw = consumeMessage(cwd, name, f); }
       catch (e) { console.error(`[flbus] consume error for ${f} (message preserved): ${e}`); continue; }
-      if (raw === null) { out(`(${f} was taken by another reader — already delivered)\n`); continue; } // not a silent drop
+      if (raw === null) { out(`(${f} was already taken by another reader)\n`); continue; } // not a silent drop
       if (!out(`${raw}\n`)) process.exit(1); // pipe closed mid-message; already archived
     }
     out("[flbus] delivered — report what arrived to the user, then re-arm to keep listening\n");
