@@ -8,7 +8,7 @@ import { atomicWrite, peers, PEERS_PATH, readJson, RESERVED, retryRename, samePa
 export function run(args: string[]) {
   const sIdx = args.indexOf("--state");
   const stateArg = sIdx >= 0 ? args.splice(sIdx, 2)[1] : undefined;
-  const [cmd, nameArg, dirArg] = args;
+  const [cmd = "ls", nameArg, dirArg] = args;
 
   // raw form is preserved on write: plain string = a bare dir (no state → central storage)
   const raw = readJson<Record<string, string | PeerEntry>>(PEERS_PATH, {});

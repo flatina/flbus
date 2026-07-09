@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { archiveDir, atomicWrite, busDir, inboxDir, listenFlag, peers, projectRoot, readFlag, readJson, RESERVED, resolveName, retryRename, validName } from "./lib";
 
 export function run(args: string[]) {
-  const [sub, arg] = args;
+  const [sub = "ls", arg] = args;
   const cwd = projectRoot(process.cwd());
 
   function requireValid(name: string | undefined): string {
