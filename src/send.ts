@@ -33,9 +33,9 @@ export function run(args: string[]) {
   function resolveTarget(addr: string): { dir: string; mailbox: string } {
     const { project, mailbox, host } = parseAddress(addr);
     if (host !== undefined) { console.error(`remote peers not supported yet (got '@${host}' in '${addr}')`); process.exit(1); }
-    if (!project) { console.error(`bad address '${addr}': need a peer or 'here:' — e.g. 'alpha', 'alpha:elder', 'here:elder'`); process.exit(1); }
+    if (!project) { console.error(`bad address '${addr}': need a peer or 'here:' — e.g. 'alpha', 'alpha:main', 'here:main'`); process.exit(1); }
     if (project === "here") {
-      if (!mailbox) { console.error(`'here:' needs a mailbox name — e.g. 'here:elder'`); process.exit(1); }
+      if (!mailbox) { console.error(`'here:' needs a mailbox name — e.g. 'here:main'`); process.exit(1); }
       if (!validName(mailbox)) { console.error(`invalid mailbox name '${mailbox}' — letters/digits/._- only`); process.exit(1); }
       if (!existsSync(join(busDir(cwd), mailbox))) {
         console.error(`no local mailbox '${mailbox}' here — 'flbus claim ${mailbox}' to receive as it, or 'flbus mailbox add ${mailbox}' to make it for another session`);

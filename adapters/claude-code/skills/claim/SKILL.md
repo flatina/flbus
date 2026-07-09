@@ -15,4 +15,4 @@ flbus claim --off       # release the binding
 
 **`claim` vs `mailbox add`** — both make a same-folder mailbox, but for opposite intents:
 - **`flbus claim <name>`** — *"I receive as `<name>`."* Creates + **binds this session**. The normal case.
-- **`flbus mailbox add <name>`** — *"make a mailbox for ANOTHER session to claim later."* Creates **without binding** — pre-provision a box before its session exists (e.g. a coordinator preparing `scion` before the scion session starts). That session then runs `flbus claim <name>`.
+- **`flbus mailbox add <name>`** — *"make a mailbox for ANOTHER session to claim later."* Creates **without binding** — pre-provision a box before its session exists; that session then runs `flbus claim <name>`.
