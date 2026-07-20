@@ -12,7 +12,7 @@ flbus send --to <addr> --summary "<terse one line>" --subject "<filename>" --bod
 - `peer`                    — a registered peer project's default mailbox (the common case)
 - `peer:mailbox`            — a named mailbox on a peer (when it has multiple sessions)
 - `here:mailbox`            — a mailbox in THIS folder (co-located sessions); `here:` is required, never a bare name
-- `project[:mailbox]@node`  — a project on a remote machine (delivery is async; failures come back as inbox messages)
+- `project[:mailbox]@node`  — a project on a remote machine, e.g. `notes@laptop` (not `myrepo:notes@laptop` — no local prefix); async, failures come back as inbox messages
 
 - Body with backticks/`$(...)`/quotes: never inline `--body` (shell mangles it) — use `--body-stdin` with a single-quoted heredoc (bash `<<'E'…E`) or here-string (PowerShell `@'…'@`), or `--body-file <.tmp/file>`
 - `--cc <a,b>`: also deliver to others (everyone sees the full addressing)
