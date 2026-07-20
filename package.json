@@ -1,9 +1,13 @@
 {
   "name": "@flatina/flbus",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": false,
-  "bin": { "flbus": "dist/flbus.js" },
-  "files": ["dist"],
+  "bin": {
+    "flbus": "dist/flbus.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "bun build src/flbus.ts --target=node --format=cjs --outfile dist/flbus.js",
     "prepare": "bun run build"
