@@ -2,18 +2,22 @@
 // take/discard move the message into the state dir's archive (paper trail); discard skips printing it.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { consumeMessage, inboxDir, parseEnvelope, projectRoot, resolveName } from "./lib";
+import { consumeMessage, inboxDir, parseEnvelope, projectRoot, resolveIdentity } from "./lib";
 
 export function run(args: string[]) {
   const cmd = args[0];
   const opt = (k: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : undefined; };
 
   const cwd = projectRoot(process.cwd());
-  const name = opt("name") ?? resolveName(cwd);
+  const id = resolveIdentity(cwd);
+  const name = opt("name") ?? id.name;
   const dir = inboxDir(cwd, name);
-  const files = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".md")) : [];
+  // receive-time prefix orders the listing; directory enumeration order is not presentation order
+  const files = existsSync(dir) ? readdirSync(dir).filter(f => f.endsWith(".md")).sort() : [];
 
   if (cmd === "peek") {
+    // an empty fallback inbox is not the same fact as an empty real one — nobody could have sent here
+    if (!opt("name") && id.via === "basename") console.log(`(this folder is unregistered — resolving as basename '${name}'; peers and remote senders cannot address it)`);
     if (!files.length) { console.log("(inbox empty)"); process.exit(0); }
     for (const f of files) {
       const { env } = parseEnvelope(readFileSync(join(dir, f), "utf8"));

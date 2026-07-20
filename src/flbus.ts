@@ -11,6 +11,8 @@ import { run as status } from "./status";
 import { run as notify } from "./notify";
 import { run as reap } from "./reap";
 import { run as mailbox } from "./mailbox";
+import { run as remote } from "./remote";
+import { run as whoami } from "./whoami";
 import pkg from "../package.json";
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -24,7 +26,10 @@ const DISPATCH: Record<string, () => void> = {
   mailbox: () => mailbox(rest),
   claim: () => mailbox(["bind", ...rest]),
   status: () => status(),
+  whoami: () => whoami(),
   peer: () => peer(rest),
+  register: () => peer(["add", ...rest]),
+  remote: () => remote(rest),
   notify: () => notify(),
   guard: () => guard(),
   reap: () => reap(),
@@ -35,22 +40,27 @@ const HELP = `flbus ${pkg.version} — human-gated, file-based agent message bus
 usage: flbus <command> [args]
 
   send --to <addr> --summary <s> [--subject <s>] [--cc <a,b>] [--body <t>|--body-file <p>|--body-stdin]
-                                      send a message (--recall to unsend an unread one)
-                                      <addr>: peer | peer:mailbox | here:mailbox
+                                      send a message (--recall to unsend an unread/unsent one)
+                                      <addr>: peer | peer:mailbox | here:mailbox | project[:mailbox]@node
   peek [--name <name>]                list waiting messages (summaries; does NOT consume)
   take <file|all> [--name <name>]     read message(s) and remove from inbox (archived)
   discard <file|all> [--name <name>]  drop message(s) unread (archived)
   listen [--off|--arm-only]           watch inbox & CONSUME on arrival (run as a background task)
   claim <name> | claim --off          receive as <name> here (creates the mailbox + binds this session)
-  mailbox add <name> | ls | rm <name> pre-make / list / remove same-folder mailboxes
+  mailbox ls | rm <name>              list / remove same-folder mailboxes
   peer add [name] [dir] [--state <rel>] | ls | rm <name>
-                                      directory of other flbus instances (projects now, remote PCs later)
-  status                              inbox indicator for statusLine (reads hook JSON on stdin)
+                                      directory of other local flbus projects
+  register [name]                     register THIS project as a peer (creates its mailbox); = peer add
+  remote [status] | daemon [status|stop|disable|enable] | giveup <id>|--to <node> | check
+                                      cross-machine over pinned TLS; nodes live in ~/.flbus/net.json;
+                                      address a remote as project[:mailbox]@node
+  status                              inbox + net indicator for statusLine (reads hook JSON on stdin)
+  whoami                              how this session's identity resolves (claimed / registered / unregistered)
   -h, --help                          show this help
   -v, --version                       show version
 
 State is central in ~/.flbus by default; set a peer's \`state\` to store it in-tree instead.
-(notify, guard, reap are internal Claude Code hook entrypoints.)`;
+(notify, guard, reap, and \`remote daemon run\` are internal entrypoints -- hooks and the transport daemon.)`;
 
 if (!cmd || cmd === "-h" || cmd === "--help") { console.log(HELP); process.exit(0); }
 if (cmd === "-v" || cmd === "--version") { console.log(pkg.version); process.exit(0); }

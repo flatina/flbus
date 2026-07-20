@@ -8,7 +8,8 @@
 import { watch } from "node:fs";
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { listenFlag, consumeMessage, inboxDir, out, projectRoot, readFlag, resolveName } from "./lib";
+import { listenFlag, consumeMessage, inboxDir, out, projectRoot, readFlag, resolveIdentity } from "./lib";
+import { ensure } from "./remote/daemon";
 
 export function run(args: string[]) {
   const sid = process.env.CLAUDE_CODE_SESSION_ID;
@@ -17,7 +18,8 @@ export function run(args: string[]) {
   if (unknown) { console.error(`unknown argument: ${unknown} (usage: flbus listen [--off | --arm-only])`); process.exit(1); }
 
   const cwd = projectRoot(process.cwd());
-  const name = resolveName(cwd);
+  const id = resolveIdentity(cwd);
+  const name = id.name;
   const flagPath = listenFlag(cwd, name);
 
   if (args.includes("--off")) {
@@ -29,6 +31,14 @@ export function run(args: string[]) {
     rmSync(flagPath, { force: true });
     console.log(`listen off for '${name}'`);
     process.exit(0);
+  }
+
+  // Fail closed, nothing written: arming a basename-fallback identity would phantom-create a mailbox
+  // nobody can address (mailboxes exist only via claim/register — listen must not be a third way in).
+  if (id.via === "basename") {
+    console.error(`not listening: this folder is unregistered — '${name}' is a basename fallback peers and remote senders cannot address.`);
+    console.error(`\`flbus register\` this project (or \`flbus claim <name>\`) first, then listen.`);
+    process.exit(1);
   }
 
   mkdirSync(dirname(flagPath), { recursive: true });
@@ -45,7 +55,7 @@ export function run(args: string[]) {
   mkdirSync(dir, { recursive: true });
   if (!out(`listening as '${name}': ${dir}\n`)) process.exit(1);
 
-  const messages = () => readdirSync(dir).filter(f => f.endsWith(".md"));
+  const messages = () => readdirSync(dir).filter(f => f.endsWith(".md")).sort(); // receive-prefix order
   // single owner: deliver only while I hold the flag (sid+pid); a newer arm supersedes me → stand down
   const owned = () => { const fl = readFlag(flagPath); return fl?.sid === sid && fl?.pid === process.pid; };
 
@@ -82,5 +92,8 @@ export function run(args: string[]) {
   const existing = messages();
   if (existing.length) finish(existing);
 
-  setInterval(check, 10_000); // poll fallback for missed fs.watch events (and the idle stand-down check)
+  setInterval(() => {
+    check();
+    try { ensure(); } catch {} // a daemon that crashes mid-quiet-stretch has no prompt to revive it — a live watcher does
+  }, 10_000); // poll fallback for missed fs.watch events (and the idle stand-down check)
 }

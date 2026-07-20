@@ -1,9 +1,11 @@
 ---
 name: register
-description: Register an flbus peer (another project) to message it — alias for `flbus peer add`.
+description: Register THIS project as an flbus peer so others can message it.
 disable-model-invocation: true
 ---
 
 # flbus register
 
-Registering a peer = `flbus peer add [name] [dir]`. For all forms (`--state`, list, remove) see `/flbus:peer`.
+`flbus register [name]` — register THIS project (name = folder if omitted). Alias for `flbus peer add`; other forms via `/flbus:peer`.
+
+If `~/.claude/settings.json` has no `statusLine`, add `"statusLine": {"type":"command","command":"flbus status","refreshInterval":10}` and have the user restart; don't overwrite an existing one. (dev bash-shim → `bun <flbus>/src/flbus.ts status`)

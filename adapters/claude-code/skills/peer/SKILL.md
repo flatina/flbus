@@ -13,4 +13,5 @@ flbus peer ls
 flbus peer rm <name>
 ```
 
-Address a peer as `<name>` (its default mailbox) or `<name>:<mailbox>`.
+Address a peer as `<name>` (its default mailbox) or `<name>:<mailbox>`. Peers are local projects; a project on
+another machine is addressed `<project>[:mailbox]@node` (nodes: `flbus remote check`).

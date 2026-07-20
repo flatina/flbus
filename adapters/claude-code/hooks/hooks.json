@@ -1,5 +1,12 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "flbus remote daemon", "timeout": 10 }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [

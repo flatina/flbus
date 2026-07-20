@@ -14,8 +14,8 @@ function isListenWatcher(pid: number): boolean {
   const isWatcher = (cmd: string) => /flbus/i.test(cmd) && /\blisten\b/i.test(cmd);
   try {
     if (process.platform === "linux") return isWatcher(readFileSync(`/proc/${pid}/cmdline`, "utf8"));
-    if (process.platform === "darwin") return isWatcher(execFileSync("ps", ["-p", String(pid), "-o", "args="], { encoding: "utf8", timeout: 2000 }));
-    return isWatcher(execFileSync("powershell", ["-NoProfile", "-Command", `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CommandLine`], { encoding: "utf8", timeout: 2000 }));
+    if (process.platform === "darwin") return isWatcher(execFileSync("ps", ["-p", String(pid), "-o", "args="], { encoding: "utf8", timeout: 2000, windowsHide: true }));
+    return isWatcher(execFileSync("powershell", ["-NoProfile", "-Command", `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CommandLine`], { encoding: "utf8", timeout: 2000, windowsHide: true }));
   } catch { return false; }
 }
 

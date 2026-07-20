@@ -1,8 +1,9 @@
-// UserPromptSubmit hook: one-line inbox summaries (never injects bodies).
+// UserPromptSubmit hook: one-line inbox summaries (never injects bodies) + a cheap daemon `ensure` (spawn/renew).
 // Summary-only messages (empty body) are fully delivered by the notice line: archived here, no pull needed.
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { archiveDir, inboxDir, parseAddress, parseEnvelope, projectRoot, resolveName, retryRename } from "./lib";
+import { archivePartition, inboxDir, parseAddress, parseEnvelope, projectRoot, resolveName, retryRename } from "./lib";
+import { ensure } from "./remote/daemon";
 
 export function run() {
   try {
@@ -13,14 +14,14 @@ export function run() {
     // and never skipping keeps the gate alive when a .listen flag is orphaned (watcher gone).
     const dir = inboxDir(cwd, name);
     let pending = 0;
-    for (const f of readdirSync(dir).filter(f => f.endsWith(".md"))) {
+    for (const f of readdirSync(dir).filter(f => f.endsWith(".md")).sort()) {
       try {
         const { env, body } = parseEnvelope(readFileSync(join(dir, f), "utf8"));
         const a = env.to ? parseAddress(env.to) : {};
         const ccTag = env.cc && (a.mailbox ?? a.project) !== name ? " (cc)" : "";
         const line = `[flbus] ${name} inbox: from ${env.from ?? "?"} — "${env.summary ?? f}" · ${f}${ccTag}`;
         if (body.trim()) { console.log(line); pending++; continue; }
-        const archive = archiveDir(cwd);
+        const archive = archivePartition(cwd); // partitioned, so a remote retry still finds its dedup witness
         mkdirSync(archive, { recursive: true });
         retryRename(join(dir, f), join(archive, `${Date.now()}-${f}`));
         console.log(`${line} (summary-only — delivered)`);
@@ -30,5 +31,6 @@ export function run() {
   } catch {
     // a failed notice must never break the user's prompt
   }
+  try { ensure(); } catch { /* daemon ensure is best-effort — never blocks the prompt */ }
   process.exit(0);
 }
