@@ -38,7 +38,7 @@ export function run(args: string[]) {
     }
     try { rmSync(aside, { recursive: true, force: true }); } catch {}
     console.log(`mailbox '${name}' removed${archived ? ` (${archived} unread archived)` : ""}`);
-  } else if (sub === "ls") {
+  } else if (sub === "ls" || sub === "list") {
     const base = busDir(cwd);
     const isDir = (n: string) => { try { return statSync(join(base, n)).isDirectory(); } catch { return false; } };
     const names = existsSync(base) ? readdirSync(base).filter(n => n !== "archive" && !n.startsWith(".") && isDir(n)) : [];

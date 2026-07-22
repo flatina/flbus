@@ -1,7 +1,6 @@
-// `flbus peer ls | add [name] [dir] [--state <rel>] | add <name> --host <user@host> [--via stage] | rm <name>`
-// Local add registers a THIS-machine project (dir defaults to cwd, name to basename) AND creates its default
-// mailbox -- registered = reachable. Remote add (`--host`) registers a peer on another host over ssh: NO dir
-// (the remote resolves the name via its own table); `--via stage` = this machine can't ssh it (outbound staged).
+// `flbus peer ls | add [name] [dir] [--state <rel>] | rm <name>`  (`list` accepted for `ls`)
+// Peers are THIS-machine projects. add registers one (dir defaults to cwd, name to basename) AND creates its
+// default mailbox -- registered = reachable. Remote nodes live in net.json, not here.
 import { existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { atomicWrite, inboxDir, peers, PEERS_PATH, readJson, RESERVED, retryRename, samePath, stateDir, validName, type PeerEntry } from "./lib";
@@ -19,7 +18,7 @@ export function run(args: string[]) {
   const entryDir = (v: string | PeerEntry): string | undefined => (typeof v === "string" ? v : v.dir);
   const entryState = (v: string | PeerEntry) => (typeof v === "string" ? undefined : v.state);
 
-  if (cmd === "ls") {
+  if (cmd === "ls" || cmd === "list") {
     const entries = Object.entries(peers());
     if (!entries.length) console.log("(no peers)");
     for (const [n, e] of entries) {
@@ -59,7 +58,7 @@ export function run(args: string[]) {
     atomicWrite(PEERS_PATH, JSON.stringify(raw, null, 2));
     console.log(`removed: ${nameArg}`);
   } else {
-    console.error("usage: flbus peer ls | add [name] [dir] [--state <rel>] | add <name> --host <user@host> [--via stage] | rm <name>");
+    console.error("usage: flbus peer ls | add [name] [dir] [--state <rel>] | rm <name>");
     process.exit(1);
   }
 }
