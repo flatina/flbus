@@ -26,7 +26,7 @@ const DISPATCH: Record<string, () => void> = {
   listen: () => listen(rest),
   mailbox: () => mailbox(rest),
   claim: () => mailbox(["bind", ...rest]),
-  status: () => status(),
+  status: () => status(rest),
   whoami: () => whoami(),
   doctor: () => doctor(),
   peer: () => peer(rest),

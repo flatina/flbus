@@ -7,7 +7,10 @@ import { ensure } from "./remote/daemon";
 
 export function run() {
   try {
-    const input = JSON.parse(readFileSync(0, "utf8")) as { session_id?: string; cwd?: string };
+    // parse defensively (mirror of status): broken/empty stdin falls back to the cwd/env identity rather
+    // than skipping the whole scan — a hand-tested hook with a bad payload must not read as "notify broken"
+    let input: { session_id?: string; cwd?: string } = {};
+    try { input = JSON.parse(readFileSync(0, "utf8")); } catch {}
     const cwd = projectRoot(input.cwd ?? process.cwd());
     const name = resolveName(cwd, input.session_id);
     // Always summarize (flag-agnostic): claim-first consume keeps notify/watcher concurrency safe,
