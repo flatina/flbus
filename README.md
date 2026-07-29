@@ -45,7 +45,7 @@ A session in a subdirectory anchors to the deepest registered peer at or above i
 
 ## Remote
 
-`--to project[:mailbox]@node` reaches a project on another machine — local addressing plus a node name. Machines link over **pinned self-signed TLS** (no ssh; works on networks with no security of their own), hub-and-spoke: spoke↔spoke traffic relays through the hub, so each machine only configures its link to the hub. Node setup lives in `~/.flbus/net.json` (the ops doc has the shape and cert commands).
+`--to project[:mailbox]@node` reaches a project on another machine — local addressing plus a node name. Machines link over **pinned self-signed TLS** (no ssh; works on networks with no security of their own), hub-and-spoke: spoke↔spoke traffic relays through the hub, so each machine only configures its link to the hub. Node setup lives in `~/.flbus/net.json`; **`/flbus:remote` walks an agent through it** (schema, certs, topology, rotation), and `flbus remote check` validates it.
 
 A remote send returns immediately; a transport daemon delivers it **end-to-end acknowledged** and never reads bodies. Nothing fails silently — every failure or delay comes back as a message in the sender's own inbox. Delivery is at-least-once: rare duplicates are possible, and always visible as such. The `from` you reply to is `project@node`, its node part authenticated. Ask your agent for the transport's status, to disable it durably, or to give up on a stalled send.
 
@@ -58,6 +58,7 @@ Each command also triggers on plain words — just tell your agent:
 - `/flbus:listen` — watcher wakes the session on arrival, consumes, re-arms — *"watch your inbox"* / *"stop watching"*
 - `/flbus:peer` — register another flbus instance (bare = current project)
 - `/flbus:claim` — receive as a name for co-located sessions (type it; no plain-word trigger)
+- `/flbus:remote` — set up cross-machine messaging (pinned-TLS nodes) — *"connect this machine to the hub"*
 
 Same-folder mailboxes: `flbus claim <name>` to receive as one (`flbus mailbox ls|rm` to manage).
 
