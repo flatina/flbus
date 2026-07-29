@@ -2,6 +2,6 @@
   "name": "flatina",
   "owner": { "name": "flatina" },
   "plugins": [
-    { "name": "flbus", "source": "./adapters/claude-code", "description": "Agent-to-agent message bus for Claude Code sessions — human-gated, file-based, no daemon" }
+    { "name": "flbus", "source": "./adapters/claude-code", "description": "Agent-to-agent, human-gated, file-based message bus for Claude Code sessions — local, and cross-machine over pinned TLS" }
   ]
 }

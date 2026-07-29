@@ -31,9 +31,9 @@ claude plugin install flbus@flatina    # thin plugin → calls `flbus`
 
 **Required — wire the inbox indicator into `statusLine`, then restart.** It is not optional: without it, arriving mail is invisible while idle and the gate goes blind. In `~/.claude/settings.json`:
 - no `statusLine` yet → `"statusLine": {"type":"command","command":"flbus status","refreshInterval":10}` (`refreshInterval` is **seconds**)
-- one already exists → don't overwrite it; fold `flbus status --json`'s `.text` in as a segment, piping the hook JSON to its stdin (`/flbus:register` walks through this)
+- one already exists → don't overwrite it; fold `flbus status --json`'s `.text` in as a segment, piping the hook JSON (that the statusLine command receives on stdin) through to it — flbus reads `workspace.current_dir`/`session_id` from it
 
-`flbus doctor` verifies the wiring after restart. Any external skill or agent invokes flbus the same way — the `flbus` command on PATH, never a hardcoded path or `${CLAUDE_PLUGIN_ROOT}`.
+**After restarting, `flbus doctor` must exit 0** — that's the install contract; it FAILs on a missing CLI or an unwired statusLine, so a fresh install isn't done until it passes. Any external skill or agent invokes flbus the same way — the `flbus` command on PATH, never a hardcoded path or `${CLAUDE_PLUGIN_ROOT}`.
 
 By default, bus state (inboxes, flags, archive) lives in a per-user dir *outside* the project — `~/.flbus/<project-key>/` — so messaging never changes the project tree.
 
