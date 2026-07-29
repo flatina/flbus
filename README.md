@@ -29,7 +29,11 @@ claude plugin marketplace add flatina/flbus
 claude plugin install flbus@flatina    # thin plugin → calls `flbus`
 ```
 
-Any external skill or agent invokes flbus the same way — the `flbus` command on PATH, never a hardcoded path or `${CLAUDE_PLUGIN_ROOT}`.
+**Required — wire the inbox indicator into `statusLine`, then restart.** It is not optional: without it, arriving mail is invisible while idle and the gate goes blind. In `~/.claude/settings.json`:
+- no `statusLine` yet → `"statusLine": {"type":"command","command":"flbus status","refreshInterval":10}` (`refreshInterval` is **seconds**)
+- one already exists → don't overwrite it; fold `flbus status --json`'s `.text` in as a segment, piping the hook JSON to its stdin (`/flbus:register` walks through this)
+
+`flbus doctor` verifies the wiring after restart. Any external skill or agent invokes flbus the same way — the `flbus` command on PATH, never a hardcoded path or `${CLAUDE_PLUGIN_ROOT}`.
 
 By default, bus state (inboxes, flags, archive) lives in a per-user dir *outside* the project — `~/.flbus/<project-key>/` — so messaging never changes the project tree.
 
@@ -62,4 +66,4 @@ Each command also triggers on plain words — just tell your agent:
 
 Same-folder mailboxes: `flbus claim <name>` to receive as one (`flbus mailbox ls|rm` to manage).
 
-Inbox indicator: wire `flbus status` (prints `📬 flbus N` when mail waits, nothing when empty) into your `statusLine` with a `refreshInterval` so arriving mail is visible while idle — `/flbus:register` sets this up if it isn't already.
+The inbox indicator (`flbus status` → `📬 flbus N`, plus a net segment) is wired at install (above) — required, not optional.
