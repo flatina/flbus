@@ -1,11 +1,21 @@
 {
   "name": "@flatina/flbus",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": false,
   "description": "Agent-to-agent, human-gated message bus for Claude Code sessions — CLI for the flbus Claude Code plugin. After `npm i -g`, install the plugin (`claude plugin install flbus@flatina`) and wire the statusLine per the README; `flbus doctor` verifies.",
-  "keywords": ["claude-code", "claude-code-plugin", "agent", "message-bus", "ipc", "cli"],
+  "keywords": [
+    "claude-code",
+    "claude-code-plugin",
+    "agent",
+    "message-bus",
+    "ipc",
+    "cli"
+  ],
   "homepage": "https://github.com/flatina/flbus#readme",
-  "repository": { "type": "git", "url": "https://github.com/flatina/flbus.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flatina/flbus.git"
+  },
   "bin": {
     "flbus": "dist/flbus.js"
   },
