@@ -4,8 +4,22 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { createHash, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import {
-  FLBUS_HOME, RESERVED, busDir, depositMessage, localPeers, readJson, retryRename, validName, type Envelope,
+  DAEMON_LOCK_PATH, DAEMON_STATUS_PATH, FLBUS_HOME, RESERVED, busDir, depositMessage, localPeers, readJson, retryRename, validName, type Envelope,
 } from "../lib";
+
+// Daemon liveness — one predicate shared by status, doctor, and `remote status`. The daemon rewrites its
+// status snapshot (with its own pid) every few seconds; a lock pid that matches a fresh snapshot pid is the
+// live daemon, so a recycled pid can't read as running. EPERM from kill(pid,0) means alive (foreign owner).
+export const STATUS_TTL_MS = 180_000;
+export function daemonLive(): number | undefined {
+  let pid = 0;
+  try { pid = Number((readFileSync(DAEMON_LOCK_PATH, "utf8").split(/\r?\n/)[0] || "").trim()); } catch { return undefined; }
+  if (!pid) return undefined;
+  const snap = readJson<{ pid?: number; at?: number }>(DAEMON_STATUS_PATH, {});
+  if (snap.pid !== pid || typeof snap.at !== "number" || Date.now() - snap.at >= STATUS_TTL_MS) return undefined;
+  try { process.kill(pid, 0); } catch (e) { if ((e as NodeJS.ErrnoException).code !== "EPERM") return undefined; }
+  return pid;
+}
 
 // ---- protocol constants ----
 export const WIRE_V = 1;

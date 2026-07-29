@@ -3,8 +3,8 @@
 // `--json` emits the structured fields (plus the composed `text`) so a custom statusline can fold flbus
 // in without parsing the human string.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { DAEMON_LOCK_PATH, DAEMON_STATUS_PATH, inboxDir, projectRoot, readJson, resolveName } from "./lib";
-import { NET_PATH, netActive, outboxDepth, tryNet } from "./remote/net";
+import { inboxDir, projectRoot, resolveName } from "./lib";
+import { NET_PATH, daemonLive, netActive, outboxDepth, tryNet } from "./remote/net";
 
 export function run(args: string[] = []) {
   let input: { session_id?: string; cwd?: string; workspace?: { current_dir?: string } } = {};
@@ -18,23 +18,16 @@ export function run(args: string[] = []) {
   let net: { configured: boolean; active: boolean; running: boolean; mode: string; queued: number; error: boolean } | null = null;
   try {
     const cfg = tryNet();
-    const configured = existsSync(NET_PATH);
-    if (configured) {
-      if (!cfg) net = { configured, active: false, running: false, mode: "?", queued: 0, error: true };
-      else if (netActive(cfg)) {
-        const snap = readJson<{ at?: number }>(DAEMON_STATUS_PATH, {});
-        let pidAlive = false;
-        try { const pid = Number((readFileSync(DAEMON_LOCK_PATH, "utf8").split(/\r?\n/)[0] || "").trim()); if (pid) { process.kill(pid, 0); pidAlive = true; } } catch {}
-        const running = pidAlive && typeof snap.at === "number" && Date.now() - snap.at < 180_000;
-        net = { configured, active: true, running, mode: cfg.mode ?? "manual", queued: outboxDepth(), error: false };
-      }
+    if (existsSync(NET_PATH)) {
+      if (!cfg) net = { configured: true, active: false, running: false, mode: "?", queued: 0, error: true };
+      else net = { configured: true, active: netActive(cfg), running: !!daemonLive(), mode: cfg.mode ?? "manual", queued: outboxDepth(), error: false };
     }
   } catch {}
 
   const parts: string[] = [];
   if (inbox > 0) parts.push(`📬 flbus ${inbox} — /flbus:recv to read`);
   if (net?.error) parts.push(`⇅ flbus net: CONFIG ERROR — flbus remote check`);
-  else if (net?.active && !net.running) parts.push(`⇅ flbus net stopped (${net.mode})`);
+  else if (net?.active && !net.running) parts.push(`⇅ flbus net stopped (${net.mode})${net.queued > 0 ? `, ${net.queued} queued` : ""}`);
   else if (net?.active && net.queued > 0) parts.push(`⇅ flbus net: ${net.queued} sending`);
   const text = parts.join("  ");
 

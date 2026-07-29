@@ -1,69 +1,75 @@
-// `flbus doctor` — self-diagnostic for an install agent. Neutral checks are authoritative; Claude Code
-// integration is best-effort (the CLI is adapter-neutral). Exit 1 if any check FAILs.
-import { existsSync, readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+// `flbus doctor` — the install contract. Exit 0 only when the product can actually work: CLI on PATH,
+// project addressable, valid remote config, and (Claude Code) a wired statusLine so the human gate can see
+// arrivals. FAILs are what break the product; warns are advisories. Neutral checks are authoritative; the
+// Claude Code section is best-effort but its statusLine requirement is load-bearing (without it the gate is blind).
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DAEMON_LOCK_PATH, DAEMON_STATUS_PATH, NO_DAEMON_PATH, pidMatches, projectRoot, readJson, resolveIdentity } from "./lib";
-import { NET_PATH, loadNet, netActive } from "./remote/net";
+import { NO_DAEMON_PATH, peerFor, projectRoot, readJson, resolveIdentity } from "./lib";
+import { NET_PATH, daemonLive, loadNet, netActive } from "./remote/net";
 import pkg from "../package.json";
 
 type Level = "ok" | "warn" | "fail";
 const mark = { ok: "✓", warn: "!", fail: "✗" } as const;
 
+// Portable PATH lookup (no dependency on `which`/`where`, which aren't guaranteed).
+function onPath(): string | undefined {
+  const win = process.platform === "win32";
+  const exts = win ? ["", ".cmd", ".exe", ".ps1", ".bat"] : [""];
+  for (const dir of (process.env.PATH || "").split(win ? ";" : ":")) {
+    if (!dir) continue;
+    for (const ext of exts) { const p = join(dir, `flbus${ext}`); try { if (existsSync(p)) return p; } catch {} }
+  }
+  return undefined;
+}
+
 export function run() {
   const lines: [Level, string][] = [];
   const add = (l: Level, s: string) => lines.push([l, s]);
 
-  // 1. CLI on PATH — the global `flbus` an agent/hook resolves (may differ from how doctor was invoked)
-  let onPath: string | undefined;
-  try {
-    const [c, a] = process.platform === "win32" ? ["where", "flbus"] : ["which", "flbus"];
-    onPath = execFileSync(c, [a], { encoding: "utf8", windowsHide: true }).split(/\r?\n/)[0].trim() || undefined;
-  } catch {}
-  if (onPath) add("ok", `flbus ${pkg.version} on PATH (${onPath})`);
-  else add("warn", `flbus ${pkg.version} running, but not found on PATH — hooks/statusLine call the global \`flbus\` (npm i -g @flatina/flbus)`);
+  // 1. CLI on PATH — hooks and statusLine call the global `flbus`; if it's not on PATH the plugin is dead.
+  const p = onPath();
+  add("ok", `flbus ${pkg.version}`);
+  if (p) add("ok", `on PATH: ${p}`);
+  else add("fail", `flbus not on PATH — hooks/statusLine can't call it (npm i -g @flatina/flbus)`);
 
-  // 2. this project's identity
+  // 2. this project's addressability
   const cwd = projectRoot(process.cwd());
   const id = resolveIdentity(cwd);
-  if (id.via === "basename") add("warn", `project unregistered — resolving as basename '${id.name}'; peers and remote senders can't address it (flbus register / flbus claim <name>)`);
-  else add("ok", `project ${id.via === "claim" ? "claimed" : "registered"} as '${id.name}'`);
+  const registered = !!peerFor(cwd);
+  if (id.via === "basename") add("warn", `project unregistered — basename '${id.name}'; peers and remote senders can't address it (flbus register, or flbus claim <name> for same-folder)`);
+  else if (id.via === "claim" && !registered) add("warn", `session claimed as '${id.name}', but the project isn't registered — only same-folder (here:) senders reach it; flbus register for cross-project/remote`);
+  else add("ok", `project ${id.via === "claim" ? `claimed as '${id.name}'` : `registered as '${id.name}'`}`);
 
-  // 3. net.json (remote transport)
-  if (!existsSync(NET_PATH)) {
-    add("ok", `remote: not configured (${NET_PATH}) — local messaging only`);
-  } else {
-    try {
-      const cfg = loadNet()!;
+  // 3. remote config + daemon (only when net.json exists)
+  if (!existsSync(NET_PATH)) add("ok", `remote: not configured — local messaging only`);
+  else {
+    let cfg;
+    try { cfg = loadNet()!; } catch (e) { add("fail", `net.json INVALID — ${(e as Error).message}`); cfg = undefined; }
+    if (cfg) {
       add("ok", `net.json valid: node '${cfg.node}'${cfg.hub ? " (hub)" : ""} mode ${cfg.mode ?? "manual"}${cfg.accept ? ` accept :${cfg.accept.port}` : ""}`);
-      // 4. daemon liveness (only meaningful when remote is active)
       if (netActive(cfg)) {
-        if (existsSync(NO_DAEMON_PATH)) add("warn", `daemon disabled (kill-switch set) — flbus remote daemon enable`);
-        else {
-          const pid = Number((readFileSync(DAEMON_LOCK_PATH, "utf8").split(/\r?\n/)[0] || "").trim() || 0);
-          const alive = pid ? pidMatches(pid, /(?=[\s\S]*flbus)(?=[\s\S]*\bdaemon\b)/i) : false;
-          const snap = readJson<{ at?: number }>(DAEMON_STATUS_PATH, {});
-          const fresh = typeof snap.at === "number" && Date.now() - snap.at < 180_000;
-          if (alive && fresh) add("ok", `daemon running (pid ${pid})`);
-          else add("warn", `daemon not running — starts on next send/session; a receive-only node needs a boot trigger (login scheduled task running \`flbus remote daemon\`)`);
-        }
+        if (existsSync(NO_DAEMON_PATH)) add("warn", `daemon disabled (kill-switch) — flbus remote daemon enable`);
+        else if (daemonLive()) add("ok", `daemon running`);
+        else if (cfg.accept) add("warn", `daemon not running — an accepting node must stay up to receive; add a login task running \`flbus remote daemon\``);
+        else add("ok", `daemon idle (manual; starts on next send/session)`);
       }
-    } catch (e) {
-      add("fail", `net.json INVALID — ${(e as Error).message}`);
     }
   }
 
-  // 5. Claude Code integration (best-effort; the CLI is adapter-neutral)
+  // 4. Claude Code statusLine — required: without it, idle arrivals are invisible and the human gate is blind.
   const settings = join(homedir(), ".claude", "settings.json");
-  if (existsSync(settings)) {
-    const s = readJson<{ statusLine?: { command?: string; refreshInterval?: number } }>(settings, {});
-    if (!s.statusLine) add("warn", `no statusLine wired — arriving mail is invisible while idle; wire \`flbus status\` (see /flbus:register)`);
-    else if (!s.statusLine.refreshInterval) add("warn", `statusLine has no refreshInterval (seconds) — idle arrivals won't refresh; add e.g. 10`);
-    else add("ok", `statusLine wired (refresh ${s.statusLine.refreshInterval}s)${/flbus/.test(s.statusLine.command ?? "") ? "" : " — custom command; ensure it folds in `flbus status`"}`);
-  }
-  add("warn", `plugin hooks + statusLine load at session start — RESTART Claude Code after install, then re-run \`flbus doctor\` to verify`);
+  const s = existsSync(settings) ? readJson<{ statusLine?: { command?: string; refreshInterval?: number } }>(settings, {}) : {};
+  if (!existsSync(settings)) add("fail", `Claude Code settings.json not found — statusLine unwired (required; the gate is blind without it)`);
+  else if (!s.statusLine) add("fail", `no statusLine wired — required; arriving mail is invisible while idle (see the README install steps)`);
+  else if (!s.statusLine.refreshInterval) add("fail", `statusLine has no refreshInterval (seconds) — idle arrivals won't refresh; add e.g. 10`);
+  else if (!/flbus/.test(s.statusLine.command ?? "")) add("warn", `statusLine is a custom command — can't verify it folds in \`flbus status\`; run it and confirm 📬 shows`);
+  else add("ok", `statusLine wired (refresh ${s.statusLine.refreshInterval}s)`);
 
-  for (const [l, s] of lines) console.log(`  ${mark[l]} ${s}`);
-  if (lines.some(([l]) => l === "fail")) process.exit(1);
+  for (const [l, str] of lines) console.log(`  ${mark[l]} ${str}`);
+  const failed = lines.some(([l]) => l === "fail");
+  console.log(failed
+    ? `  → fix the ✗ above. Plugin hooks/statusLine load at session start — restart Claude Code, then re-run \`flbus doctor\`.`
+    : `  → healthy. (Plugin hooks/statusLine load at session start; restart Claude Code if you just installed.)`);
+  if (failed) process.exit(1);
 }
