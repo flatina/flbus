@@ -1,6 +1,6 @@
 {
   "name": "@flatina/flbus",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": false,
   "bin": {
     "flbus": "dist/flbus.js"
