@@ -13,6 +13,7 @@ import { run as reap } from "./reap";
 import { run as mailbox } from "./mailbox";
 import { run as remote } from "./remote";
 import { run as whoami } from "./whoami";
+import { run as doctor } from "./doctor";
 import pkg from "../package.json";
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -27,6 +28,7 @@ const DISPATCH: Record<string, () => void> = {
   claim: () => mailbox(["bind", ...rest]),
   status: () => status(),
   whoami: () => whoami(),
+  doctor: () => doctor(),
   peer: () => peer(rest),
   register: () => peer(["add", ...rest]),
   remote: () => remote(rest),
@@ -56,6 +58,7 @@ usage: flbus <command> [args]
                                       address a remote as project[:mailbox]@node
   status                              inbox + net indicator for statusLine (reads hook JSON on stdin)
   whoami                              how this session's identity resolves (claimed / registered / unregistered)
+  doctor                              self-diagnostic: PATH, registration, net.json, daemon, statusLine
   -h, --help                          show this help
   -v, --version                       show version
 
