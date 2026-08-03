@@ -16,6 +16,8 @@ Decide which this machine is. Joining an existing hub → **spoke** (the common 
 
 ## Add this machine as a spoke
 
+**Get from the hub operator first: `HUB_NODE`** — the hub's `node` name from *its* net.json. Ask them; it is NOT the hub's hostname/Tailscale name. Guessing it wrong is the most common setup failure — the link comes up then immediately closes (flapping) because the hello is rejected.
+
 1. **Cert + key** (self-contained — does not read the system openssl.cnf, which is often broken on Windows):
    ```
    mkdir -p ~/.flbus/certs
@@ -29,25 +31,26 @@ Decide which this machine is. Joining an existing hub → **spoke** (the common 
    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 3650 \
      -keyout ~/.flbus/certs/THIS_NODE.key -out ~/.flbus/certs/THIS_NODE.crt -config ~/.flbus/certs/req.cnf
    ```
-2. **Pin** (give to the hub operator): `openssl x509 -in ~/.flbus/certs/THIS_NODE.crt -noout -fingerprint -sha256`
+2. **Pin** (give to the hub operator): `openssl x509 -in ~/.flbus/certs/THIS_NODE.crt -noout -fingerprint -sha256` → prints `sha256 Fingerprint=AB:CD:…` (64 hex bytes). Hand over that value; either the whole line or just the hex works (the label is stripped), e.g. `"AB:CD:EF:…"`.
 3. **Token** (you generate, shared with the hub): `openssl rand -hex 24`
 4. **Port**: pick a **fixed port below 49152**. On Windows the dynamic range (49152+) is chunk-reserved by Hyper-V/WSL and gives `listen EACCES` on seemingly-free ports — check `netsh int ipv4 show excludedportrange protocol=tcp`.
-5. **Write `~/.flbus/net.json`** (accept-only spoke):
+5. **Write `~/.flbus/net.json`** (accept-only spoke). **`hubNode` and the `accept.tokens` key must both be `HUB_NODE`** (the hub's `node`, from step above) — not this machine's name:
    ```json
    { "node": "THIS_NODE",
      "hubNode": "HUB_NODE",
      "accept": { "port": 9440, "cert": "<abs path>/THIS_NODE.crt", "key": "<abs path>/THIS_NODE.key",
                  "tokens": { "HUB_NODE": "THE_TOKEN" } } }
    ```
-6. `flbus remote check` → fix any error it names.
-7. **Ensure `<this-tailscale-or-lan-IP>:<port>` is reachable from the hub** (open the port to the trusted interface only).
-8. **Hand the hub operator four values**: node name `THIS_NODE`, address `IP:port`, the pin (step 2), the token (step 3). The hub adds you (below).
-9. **Start + verify**: `flbus remote daemon` then `flbus remote status` (expect `HUB_NODE: up (inbound)`) then `flbus doctor`.
-10. **Boot** (receive-only machine, no live session to spawn the daemon): add a **login/logon scheduled task** running `flbus remote daemon`. flbus ships no OS service supervision by design.
+6. **Register the project that sends/receives here**: `flbus register` (this folder) or `flbus peer add <name> <dir>`. Required both ways — a remote `send` refuses without it, and an inbound message to an unregistered project bounces as `unregistered-mailbox`. (Its mailbox is where `@THIS_NODE` mail lands.)
+7. `flbus remote check` → fix any error it names (it validates shape, not that names match the hub).
+8. **Ensure `<this-tailscale-or-lan-IP>:<port>` is reachable from the hub** (open the port to the trusted interface only).
+9. **Hand the hub operator four values**: node name `THIS_NODE`, address `IP:port`, the pin (step 2), the token (step 3). The hub adds you (below).
+10. **Start + verify**: `flbus remote daemon`, then `flbus remote status` (expect `HUB_NODE: up (inbound)` — if it flaps up/down, the hubNode/token name is wrong, step 5), then `flbus doctor` (must exit 0).
+11. **Boot** (receive-only machine, no live session to spawn the daemon): add a **login/logon scheduled task** running `flbus remote daemon`. flbus ships no OS service supervision by design.
 
 ## Hub side: add a spoke
 
-Add to the hub's `net.json` `peers` (create the block if absent), using the four values the spoke handed you:
+**Tell the spoke this hub's `node` name** (it needs it for `hubNode` + `accept.tokens`). Then add to the hub's `net.json` `peers` (create the block if absent), using the four values the spoke handed you:
 ```json
 "THIS_NODE": { "address": "IP:port", "pins": ["<spoke pin>"], "token": "THE_TOKEN" }
 ```

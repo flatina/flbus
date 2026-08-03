@@ -37,7 +37,8 @@ export function run() {
   const cwd = projectRoot(process.cwd());
   const id = resolveIdentity(cwd);
   const registered = !!peerFor(cwd);
-  if (id.via === "basename") add("warn", `project unregistered — basename '${id.name}'; peers and remote senders can't address it (flbus register, or flbus claim <name> for same-folder)`);
+  const remoteCfg = existsSync(NET_PATH);
+  if (id.via === "basename") add("warn", `project unregistered — basename '${id.name}'; \`flbus register\` to make it addressable${remoteCfg ? " (remote send is REFUSED and inbound @-mail bounces until you do)" : " (or flbus claim <name> for same-folder)"}`);
   else if (id.via === "claim" && !registered) add("warn", `session claimed as '${id.name}', but the project isn't registered — only same-folder (here:) senders reach it; flbus register for cross-project/remote`);
   else add("ok", `project ${id.via === "claim" ? `claimed as '${id.name}'` : `registered as '${id.name}'`}`);
 
@@ -63,7 +64,7 @@ export function run() {
   if (!existsSync(settings)) add("fail", `Claude Code settings.json not found — statusLine unwired (required; the gate is blind without it)`);
   else if (!s.statusLine) add("fail", `no statusLine wired — required; arriving mail is invisible while idle (see the README install steps)`);
   else if (!s.statusLine.refreshInterval) add("fail", `statusLine has no refreshInterval (seconds) — idle arrivals won't refresh; add e.g. 10`);
-  else if (!/flbus/.test(s.statusLine.command ?? "")) add("warn", `statusLine is a custom command — can't verify it folds in \`flbus status\`; run it and confirm 📬 shows`);
+  else if (!/flbus/.test(s.statusLine.command ?? "")) add("ok", `statusLine present (custom command) — if it folds in \`flbus status\` you're set; doctor can't inspect a wrapper, so confirm 📬 shows on a test message`);
   else add("ok", `statusLine wired (refresh ${s.statusLine.refreshInterval}s)`);
 
   for (const [l, str] of lines) console.log(`  ${mark[l]} ${str}`);

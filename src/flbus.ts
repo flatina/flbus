@@ -65,7 +65,9 @@ usage: flbus <command> [args]
 State is central in ~/.flbus by default; set a peer's \`state\` to store it in-tree instead.
 (notify, guard, reap, and \`remote daemon run\` are internal entrypoints -- hooks and the transport daemon.)`;
 
-if (!cmd || cmd === "-h" || cmd === "--help") { console.log(HELP); process.exit(0); }
+// `--help`/`-h` anywhere (`flbus <cmd> --help`) prints the top-level help — subcommands don't parse it,
+// so without this a help probe reads back as "unknown argument".
+if (!cmd || cmd === "-h" || cmd === "--help" || rest.includes("-h") || rest.includes("--help")) { console.log(HELP); process.exit(0); }
 if (cmd === "-v" || cmd === "--version") { console.log(pkg.version); process.exit(0); }
 
 const fn = DISPATCH[cmd];

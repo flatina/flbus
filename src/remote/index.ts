@@ -17,12 +17,13 @@ export function run(args: string[]) {
   if (sub === "check") {
     try {
       const cfg = loadNet();
-      if (!cfg) { console.log(`no net config — create ${NET_PATH} (see the ops doc for the shape)`); return; }
+      if (!cfg) { console.log(`no net config — create ${NET_PATH} (run /flbus:remote, or see the README)`); return; }
       const peers = Object.keys(cfg.peers ?? {});
-      console.log(`ok: node '${cfg.node}'${cfg.hub ? " (hub)" : ""} mode ${cfg.mode ?? "manual"}`);
+      console.log(`ok (shape valid): node '${cfg.node}'${cfg.hub ? " (hub)" : ""} mode ${cfg.mode ?? "manual"}`);
       if (cfg.accept) console.log(`  accepts on :${cfg.accept.port} for [${Object.keys(cfg.accept.tokens).join(", ")}]`);
       if (peers.length) console.log(`  connects to: ${peers.map(n => `${n}@${cfg.peers![n].address}${cfg.peers![n].hub ? " (hub)" : ""}`).join(", ")}`);
       if (cfg.hubNode) console.log(`  hub (inbound): ${cfg.hubNode}`);
+      console.log(`  note: validates SHAPE only — names here (hubNode / accept.tokens keys / peer keys) must equal the OTHER side's \`node\`; a mismatch shows as a link that comes up then closes (flapping).`);
       return;
     } catch (e) { console.error(`${(e as Error).message}`); process.exit(1); }
   }

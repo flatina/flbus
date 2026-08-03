@@ -20,7 +20,14 @@ export function run(args: string[]) {
   const BOOL_OPTS = new Set(["--body-stdin", "--recall"]);
   for (let i = 0; i < args.length; i++) {
     if (VALUE_OPTS.has(args[i])) { i++; continue; }
-    if (!BOOL_OPTS.has(args[i])) { console.error(`unknown argument: ${args[i]}`); process.exit(1); }
+    if (!BOOL_OPTS.has(args[i])) {
+      // a bare positional right after --body-stdin is almost always the body passed as its argument
+      const afterStdin = i > 0 && args[i - 1] === "--body-stdin";
+      console.error(afterStdin
+        ? `unknown argument: ${args[i].slice(0, 40)}… — \`--body-stdin\` reads the body from stdin (a heredoc); for an inline body use \`--body "<text>"\``
+        : `unknown argument: ${args[i]}`);
+      process.exit(1);
+    }
   }
 
   const cwd = projectRoot(process.cwd());

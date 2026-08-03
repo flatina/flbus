@@ -73,6 +73,8 @@ export function loadNet(): NetConfig | undefined {
     if (foldName(n) === foldName(cfg.node)) throw new Error(`net.json: peer '${n}' is this node itself`);
     if (!p.address) throw new Error(`net.json: peer '${n}' has no address`);
     if (!p.pins?.length || p.pins.some(x => !x)) throw new Error(`net.json: peer '${n}' has an empty pin set — refusing to connect unpinned`);
+    const badPin = p.pins.find(x => normPin(x).length !== 64);
+    if (badPin) throw new Error(`net.json: peer '${n}' has a malformed pin (want a 64-hex sha256 fingerprint): '${badPin}'`);
     if (!p.token) throw new Error(`net.json: peer '${n}' has no token`);
     if (p.hub) hubs++;
   }
@@ -93,8 +95,10 @@ export const nextHop = (cfg: NetConfig, dest: string): string | undefined =>
 // Linux — which would make a config that works on Windows answer unknown-node on Linux).
 export const foldName = (s: string) => s.toLowerCase();
 
-// fingerprint256 normalization: openssl and node both print "AB:CD:…"; compare lowercased hex.
-export const normPin = (p: string) => p.replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+// fingerprint256 normalization: openssl and node both print "AB:CD:…"; compare lowercased hex. A pasted
+// `openssl -fingerprint` line carries a "sha256 Fingerprint=" label whose letters are themselves hex-ish —
+// take only what follows the last `=` so the label can't corrupt the pin (a common paste mistake).
+export const normPin = (p: string) => p.slice(p.lastIndexOf("=") + 1).replace(/[^0-9a-fA-F]/g, "").toLowerCase();
 export function tokenEqual(a: string, b: string): boolean {
   const ha = createHash("sha256").update(a, "utf8").digest();
   const hb = createHash("sha256").update(b, "utf8").digest();
